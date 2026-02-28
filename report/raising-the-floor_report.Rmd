@@ -1,0 +1,187 @@
+---
+title: "Raising the Floor: Causal Evidence on Employment from the 2026 State Minimum Wage Increases"
+author: "Yeva Butovska"
+date: "February 2026"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    fig_caption: true
+geometry: margin=1in
+fontsize: 11pt
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{float}
+  - \usepackage{hyperref}
+  - \hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.pos = "H",
+  out.width = "100%"
+)
+
+library(tidyverse)
+library(fixest)
+library(modelsummary)
+library(knitr)
+library(here)
+
+panel <- read_csv(here("data/clean/panel.csv"), col_types = cols(.default = "c")) %>%
+  mutate(
+    across(c(emp_leisure, emp_retail, unemp_rate, treated, post,
+             treated_post, wage_change, wage_change_post,
+             time_index, event_time, min_wage_post, min_wage_pre),
+           as.numeric),
+    date  = as.Date(date),
+    state = as.character(state),
+    log_leisure = log(as.numeric(emp_leisure)),
+    log_retail  = log(as.numeric(emp_retail))
+  )
+
+es_leisure <- readRDS(here("output/tables/es_leisure.rds"))
+es_retail  <- readRDS(here("output/tables/es_retail.rds"))
+desc_table <- read_csv(here("output/tables/descriptive_stats.csv"))
+```
+
+# Introduction
+
+On January 1, 2026, nineteen U.S. states raised their minimum wages, while twelve states remained at the federal floor of \$7.25 per hour — a level unchanged since 2009. This sharp, simultaneous policy divergence creates a natural experiment well-suited to causal inference: states that raised their wages constitute a treatment group, and states that did not serve as controls.
+
+This paper estimates the causal effect of the January 2026 minimum wage increases on employment in two minimum-wage-sensitive industries: leisure and hospitality, and retail trade. I employ a two-way fixed effects (TWFE) difference-in-differences (DiD) design with state and time fixed effects, clustering standard errors at the state level.
+
+The central identification assumption is parallel trends: absent the wage increases, treated and control states would have exhibited similar employment trajectories. I validate this assumption through a pre-treatment placebo event study using 24 months of pre-treatment data (January 2024 through December 2025).
+
+This paper constitutes a pre-registered research design. As of February 2026, the Bureau of Labor Statistics has not yet published employment data for January and February 2026. The full DiD estimates will be produced upon data release. The pre-treatment analysis presented here establishes the credibility of the research design and documents the identification strategy in advance of observing the outcome.
+
+# Background and Motivation
+
+The employment effects of minimum wage increases have been debated in economics for decades. The seminal study by Card and Krueger (1994) challenged the conventional view that minimum wages reduce employment, finding no negative effect on fast food employment following a New Jersey wage increase. Subsequent work by Dube, Lester, and Reich (2010) refined the identification strategy by comparing contiguous county pairs across state borders, finding similarly small employment effects.
+
+More recently, Callaway and Sant'Anna (2021) and Sun and Abraham (2021) have highlighted potential biases in TWFE DiD estimators when treatment timing is staggered and treatment effects are heterogeneous. In our setting, all treated states receive treatment simultaneously on January 1, 2026, which eliminates the staggered adoption problem and makes classical TWFE a valid estimator.
+
+The 2026 wave of minimum wage increases is particularly significant. Several states — including Arizona, Colorado, Hawaii, Maine, Missouri, and Nebraska — reached or exceeded \$15 per hour for the first time, representing a meaningful policy threshold. The average wage increase among treated states is \$0.41 per hour, ranging from modest inflation adjustments to Hawaii's \$2.00 increase.
+
+# Data
+
+## Sources
+
+Employment data come from two Bureau of Labor Statistics programs. Monthly state-level employment in leisure and hospitality and retail trade are drawn from the Current Employment Statistics (CES) State and Metro Area program, accessed via the BLS public API. State unemployment rates are drawn from the Local Area Unemployment Statistics (LAUS) program. Minimum wage levels are sourced from the Economic Policy Institute Minimum Wage Tracker.
+
+## Sample
+
+The analysis covers 31 states observed monthly from January 2024 through December 2025, yielding 744 state-month observations. The treatment group consists of 19 states that raised their minimum wage on January 1, 2026. The control group consists of 12 states that remained at the federal minimum of \$7.25.
+
+Several states are excluded from the analysis. States with mid-year 2026 wage changes (Alaska, Florida, Oregon) are excluded to maintain a clean January 2026 treatment date. States with pre-existing minimum wages above \$7.25 that did not change in 2026 are also excluded to avoid contaminating the control group.
+
+## Descriptive Statistics
+```{r desc-table}
+desc_table %>%
+  mutate(treated = if_else(treated == 1, "Treated", "Control")) %>%
+  rename(
+    Group            = treated,
+    States           = n_states,
+    `Avg Leisure Emp (000s)` = avg_leisure,
+    `Avg Retail Emp (000s)`  = avg_retail,
+    `Avg Unemp Rate`         = avg_unemp,
+    `Avg Min Wage (post)`    = avg_min_wage,
+    `Avg Wage Increase`      = avg_wage_change
+  ) %>%
+  kable(
+    booktabs = TRUE,
+    caption  = "Descriptive Statistics by Treatment Group"
+  )
+```
+
+Table 1 shows that treated and control states are broadly comparable on pre-treatment unemployment rates (3.76 vs. 3.82 percent), suggesting similar labor market conditions prior to the wage changes. The average post-treatment minimum wage in treated states is \$13.80, compared to \$7.25 in control states.
+
+# Research Design
+
+## Identification Strategy
+
+I estimate a two-way fixed effects DiD model of the form:
+
+$$\log(Y_{it}) = \alpha_i + \lambda_t + \beta(\text{Treated}_i \times \text{Post}_t) + \gamma X_{it} + \varepsilon_{it}$$
+
+where $Y_{it}$ is employment (in thousands) in state $i$ in month $t$, $\alpha_i$ are state fixed effects absorbing time-invariant state characteristics, $\lambda_t$ are time fixed effects absorbing common shocks, $\beta$ is the DiD coefficient of interest, $X_{it}$ is the state unemployment rate as a time-varying covariate, and standard errors are clustered at the state level.
+
+I also estimate a continuous treatment specification replacing the binary $\text{Treated}_i \times \text{Post}_t$ with $\Delta w_i \times \text{Post}_t$, where $\Delta w_i$ is the dollar magnitude of the wage increase in state $i$. This captures dose-response heterogeneity — whether larger wage increases produce larger employment effects.
+
+## Parallel Trends Assumption
+
+The key identifying assumption is that, absent the minimum wage increases, employment in treated and control states would have evolved in parallel. I test this assumption using a pre-treatment placebo event study:
+
+$$\log(Y_{it}) = \alpha_i + \lambda_t + \sum_{k=-24}^{-2} \delta_k (\mathbf{1}[t - t^* = k] \times \text{Treated}_i) + \gamma X_{it} + \varepsilon_{it}$$
+
+where $t^* = $ January 2026 and $k = -1$ (December 2025) is the omitted reference period. Coefficients $\delta_k$ measure the differential trend between treated and control states in each month prior to treatment. Under parallel trends, these coefficients should be statistically indistinguishable from zero.
+
+## Discussion of Potential Violations
+
+Two potential threats to identification deserve mention. First, anticipation effects: if firms began adjusting employment in advance of the January 2026 increases (e.g., slowing hiring in late 2025), pre-treatment coefficients near the treatment date may reflect genuine behavioral responses rather than violations of parallel trends. The significant coefficient at $k = -2$ (November 2025) in the leisure model may reflect such anticipation. Second, SUTVA (the Stable Unit Treatment Value Assumption) requires that the treatment of one state does not affect employment in another. Border spillovers — workers crossing state lines in response to wage differentials — could violate this assumption, though the effect is likely small at the state level.
+
+# Results
+
+## Treatment Status and Wage Changes
+```{r fig1, fig.cap="Treatment status and magnitude of January 2026 minimum wage increases by state."}
+knitr::include_graphics(here("output/figures/fig1_map.png"))
+```
+
+Figure 1 maps treatment status across the continental United States. Treated states are concentrated in the Northeast, Upper Midwest, and Pacific Coast — states that have historically pursued more aggressive minimum wage policies. Control states at \$7.25 are concentrated in the South and parts of the Mountain West.
+
+## Pre-Treatment Trends
+```{r fig2, fig.cap="Average log employment in treated and control states, normalized to January 2024 = 0."}
+knitr::include_graphics(here("output/figures/fig2_parallel_trends.png"))
+```
+
+Figure 2 shows the raw parallel trends for both industries. Retail trade employment tracks closely between treated and control states throughout the pre-treatment period, providing strong visual support for the parallel trends assumption in that sector. Leisure and hospitality shows more divergence, particularly in mid-2024 and late 2025, which is reflected in the event study results below.
+
+## Pre-Treatment Placebo Event Study
+```{r fig3, fig.cap="Pre-treatment placebo event study coefficients with 95% confidence intervals."}
+knitr::include_graphics(here("output/figures/fig3_event_study.png"))
+```
+
+Figure 3 presents the event study coefficients for both industries. For retail trade, all 23 pre-treatment coefficients are small in magnitude and statistically insignificant, and the confidence intervals consistently contain zero. This strongly supports the parallel trends assumption for retail.
+
+For leisure and hospitality, most pre-treatment coefficients are similarly close to zero and insignificant. However, the coefficient at $k = -2$ (November 2025) is statistically significant at the 1% level ($\hat{\delta}_{-2} = -0.025$, $p < 0.01$), suggesting some pre-existing divergence between treated and control states in the months immediately preceding treatment. This may reflect anticipation effects, seasonal patterns, or genuine pre-trend violations. We treat the leisure results with appropriate caution and note this as a limitation.
+
+## Pre-Specified DiD Models
+
+The full DiD estimates are pre-specified as follows and will be estimated upon publication of BLS January and February 2026 data, expected in March 2026:
+
+**Model 1 — Baseline TWFE DiD:**
+$$\log(Y_{it}) = \alpha_i + \lambda_t + \beta(\text{Treated}_i \times \text{Post}_t) + \gamma(\text{UnempRate}_{it}) + \varepsilon_{it}$$
+
+**Model 2 — Continuous Treatment DiD:**
+$$\log(Y_{it}) = \alpha_i + \lambda_t + \beta(\Delta w_i \times \text{Post}_t) + \gamma(\text{UnempRate}_{it}) + \varepsilon_{it}$$
+
+Both models will be estimated separately for leisure and hospitality and retail trade, with standard errors clustered at the state level.
+
+# Limitations
+
+Beyond the parallel trends concerns discussed above, several additional limitations apply. First, the control group of states at \$7.25 may differ systematically from treated states in ways not captured by state fixed effects — for example, in industrial composition or labor market tightness. Second, with only one to two months of post-treatment data available upon full estimation, the DiD estimates will capture only the immediate short-run employment response, not medium- or long-run adjustments. Third, state-level employment data aggregates across all firm sizes and demographic groups, masking potentially heterogeneous effects on, for example, teenage workers or small businesses.
+
+# Conclusion
+
+This paper presents a pre-registered causal research design for estimating the employment effects of the January 2026 state minimum wage increases. Using 24 months of pre-treatment BLS data, I validate the parallel trends assumption — particularly for retail trade — and document the full identification strategy in advance of observing post-treatment outcomes.
+
+The pre-treatment event study results are encouraging. Retail trade shows near-perfect parallel trends between treated and control states. Leisure and hospitality shows some pre-treatment divergence near the treatment date that warrants caution in interpretation. Upon publication of January and February 2026 BLS data, the pre-specified DiD models will be estimated and this paper updated with full results.
+
+# References
+
+Card, D., & Krueger, A. B. (1994). Minimum wages and employment: A case study of the fast-food industry in New Jersey and Pennsylvania. *American Economic Review*, 84(4), 772–793.
+
+Callaway, B., & Sant'Anna, P. H. C. (2021). Difference-in-differences with multiple time periods. *Journal of Econometrics*, 225(2), 200–230.
+
+Dube, A., Lester, T. W., & Reich, M. (2010). Minimum wage effects across state borders: Estimates using contiguous counties. *Review of Economics and Statistics*, 92(4), 945–964.
+
+Sun, L., & Abraham, S. (2021). Estimating dynamic treatment effects in event studies with heterogeneous treatment effects. *Journal of Econometrics*, 225(2), 175–199.
+
+U.S. Bureau of Labor Statistics. Current Employment Statistics, State and Metro Area. Retrieved via BLS Public Data API.
+
+U.S. Bureau of Labor Statistics. Local Area Unemployment Statistics. Retrieved via BLS Public Data API.
+
+Economic Policy Institute. Minimum Wage Tracker. https://www.epi.org/minimum-wage-tracker/
