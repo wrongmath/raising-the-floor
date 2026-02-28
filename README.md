@@ -73,3 +73,16 @@ All data are pulled directly from the BLS API and are fully reproducible. To rep
 - Callaway & Sant'Anna (2021) — *Difference-in-Differences with Multiple Time Periods*
 - Sun & Abraham (2021) — *Estimating Dynamic Treatment Effects in Event Studies*
 
+## Citation
+
+### APA
+Butovska, Y. (2026, February 28). Raising the Floor: Causal Evidence on Employment from the 2026 State Minimum Wage Increases. https://doi.org/10.17605/OSF.IO/9CP3Z
+
+### MLA
+Butovska, Yeva. “Raising the Floor: Causal Evidence on Employment from the 2026 State Minimum Wage Increases.” OSF, 28 Feb. 2026. Web.
+
+### Chicago
+Butovska, Yeva. 2026. “Raising the Floor: Causal Evidence on Employment from the 2026 State Minimum Wage Increases.” OSF. February 28. doi:10.17605/OSF.IO/9CP3Z.
+
+
+
